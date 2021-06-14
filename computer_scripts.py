@@ -3215,66 +3215,6 @@ class TrainingSet(XSet):
 		return(xset.drop_duplicates()) #drop duplicates for the case, that interaction with similar metabolite was already in xset
 	
 	
-	
-	#plots protein and metabolite profile overlay for given index
-	def plot_protein_metabolite_overlay_OLD(self,method,pos_index=0,neg_index=None,confidence="low",savefigs=False,plot_feature_engineered=False):
-		#load sets
-		positive_set=self.load_merged_x_set(x="positive",method=method,feature="")
-		negative_set=self.load_merged_x_set(x="negative",method=method,feature="")
-		
-		#preliminary checks
-		if len(positive_set)<=pos_index:
-			pos_index=-1
-			print("given index exceeds length of positive set, setting to last index")
-		if len(negative_set)<=neg_index:
-			neg_index=-1
-			print("given index exceeds length of negative set, setting to last index")
-		#get separations between experiments
-		experiments=list(map(lambda expfilename: expfilename[:-5].split("/")[-1],self.expfiles)) #experiments
-		separators=list()
-		num_fractions=0
-		for exp in experiments[:-1]:
-			num_fractions+=len(list(filter(lambda c: exp in c,positive_set.columns)))/2
-			separators.append(num_fractions-0.5)
-		#split sets into metabolite and protein profile
-		metabolite_cols=list(filter(lambda col: "metabolites" in col,positive_set.columns))
-		protein_cols=list(filter(lambda col: "proteins" in col,positive_set.columns))
-		metabolite_positive_set=positive_set[metabolite_cols]
-		metabolite_negative_set=negative_set[metabolite_cols]
-		protein_positive_set=positive_set[protein_cols]
-		protein_negative_set=negative_set[protein_cols]
-		#plotting
-		f,axn=plt.subplots(2,1,figsize=(10,10),num=pos_index)
-		axn[0].set_title("Positive Set",weight="bold")
-		pos_meta, =axn[0].plot(metabolite_positive_set.iloc[pos_index].tolist(),color="g")
-		pos_prot, =axn[0].plot(protein_positive_set.iloc[pos_index].tolist(),color="b")
-		ymin=min(metabolite_positive_set.iloc[pos_index].tolist()+protein_positive_set.iloc[pos_index].tolist())
-		ymax=max(metabolite_positive_set.iloc[pos_index].tolist()+protein_positive_set.iloc[pos_index].tolist())
-		axn[0].vlines(separators,ymin=ymin,ymax=ymax,color="k",linestyles="dashed")
-		pos_meta.set_label("Metabolite profile: "+str(positive_set.iloc[pos_index].name[1]))
-		pos_prot.set_label("Protein profile: "+positive_set.iloc[pos_index].name[0])
-		axn[0].legend()
-		if plot_feature_engineered:
-			positive_set_featurized=self.load_merged_x_set(x="positive",method=method,feature=None)
-			axn[1].set_title("Positive Set feature engineered",weight="bold")
-			pos_prot_feat, =axn[1].plot(positive_set_featurized.iloc[pos_index].tolist(),color="r")
-			ymin,ymax=axn[1].get_ylim()
-			axn[1].vlines(separators,ymin=ymin,ymax=ymax,color="k",linestyles="dashed")
-			pos_prot_feat.set_label("profile"+self.feature+": "+positive_set_featurized.iloc[pos_index].name[0]+","+str(positive_set_featurized.iloc[pos_index].name[1]))
-		else:
-			axn[1].set_title("Negative Set",weight="bold")
-			neg_meta, =axn[1].plot(metabolite_negative_set.iloc[neg_index].tolist(),color="g")
-			neg_prot, =axn[1].plot(protein_negative_set.iloc[neg_index].tolist(),color="b")
-			ymin=min(metabolite_negative_set.iloc[neg_index].tolist()+protein_negative_set.iloc[neg_index].tolist())
-			ymax=max(metabolite_negative_set.iloc[neg_index].tolist()+protein_negative_set.iloc[neg_index].tolist())
-			axn[1].vlines(separators,ymin=ymin,ymax=ymax,color="k",linestyles="dashed")
-			neg_meta.set_label("Metabolite profile: "+str(negative_set.iloc[neg_index].name[1]))
-			neg_prot.set_label("Protein profile: "+negative_set.iloc[neg_index].name[0])
-		axn[1].legend()
-		plt.show()
-		
-	
-	
 	#plots protein and metabolite profile overlay for given index
 	def plot_protein_metabolite_overlay(self,method,metabolite_positive_set=None,protein_positive_set=None,metabolite_negative_set=None,protein_negative_set=None,separators=None,savefigs=False,plot_feature_engineered=False):
 		if metabolite_positive_set is None or protein_positive_set is None or metabolite_negative_set is None or protein_negative_set is None or separators is None:
@@ -4240,40 +4180,6 @@ class MLClassifiers(IDTranslations):
 		return
 	
 	
-	
-	
-	
-	#get insight on variance and bias
-	def var_bias(self,methods,classifiers,len_trainset,trimvalues,measure="accuracy",training_size=0.8,reps=6):
-		#initialize dataframes
-		trainset_trimmed=list(map(lambda x: floor(x*len_trainset),trimvalues))
-		classifiers_train=list(map(lambda clf: clf+"_train",classifiers))
-		cv_df=pd.DataFrame(columns=["classifier","training_size","precision","recall","F_1","accuracy"])
-		ind=classifiers+classifiers_train
-		cv_df["classifier"]=list(itertools.chain.from_iterable(list(itertools.chain.from_iterable(list(map(lambda clf: [clf]*len(trimvalues),ind))))))
-		cv_df["training_size"]=trainset_trimmed*len(ind)
-		cv_df=cv_df.set_index(["classifier","training_size"],drop=True)
-		for method in methods:
-			for i in range(len(list(cv_df))):
-				cv_df[list(cv_df)[i]]=np.empty((len(cv_df),0)).tolist()
-			known_set=self.load_known_set(method=method)
-			for trim in trimvalues:
-				for i in range(reps): #sample known_set several times
-					known_set=self.trim_known_set(known_set_org,trim=trim)
-					for clf_str in classifiers:
-						clf=eval("self."+clf_str)
-						accuracy=self.fit_and_test_trainset(clf,known_set,training_size=training_size)
-						cv_df.loc[(clf_str+"_train",floor(trim*len_trainset)),measure].append(accuracy) 
-						clf_cv=eval("self."+clf_str)
-						quality_cv=self.fit_with_cross_validation(clf_cv,known_set,num_kfolds=5)
-						for j in range(len(list(cv_df))):
-							cv_df.loc[(clf_str,floor(trim*len_trainset)),list(cv_df)[j]].append(quality_cv[j])
-					if trim==1.0: #if full set used, no need to repeat sampling
-						break
-			cv_df.to_csv(self.analyses+"training_sizes_var_bias_"+method.__name__+self.approach+".tsv",header=True,index=True,sep="\t")
-			self.plot(cv_df,method,measure=measure,appendix="_bias_var_")
-		
-		
 		
 	#self implemented function to calculate roc curve
 	def my_roc_curve(self,test_res,test_scores):
