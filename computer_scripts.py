@@ -3609,9 +3609,6 @@ class CompleteSet(XSet):
 			if complete_set is None:
 				complete_set=self.load_set(self.databases+"complete_set.tsv")
 				complete_set=complete_set.dropna() #drops rows, where not for all experiments proteins are found to corresponding OG
-			#load metabolites and convert set to string
-			metabolites=self.meta_intersect_files()
-			metas_string=";".join(list(metabolites))
 			complete_set["OG"]=complete_set.index
 		else:
 			if complete_set is None:
